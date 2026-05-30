@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<title>O'zbekiston Madaniy Merosi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700;900&family=Mulish:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+:root{
+  --gold:#1A6FA8;--gold2:#2490CC;
+  --dark:#E8F4FD;--dark2:#D0E8F7;
+  --green:#90C4E8;--green2:#5AAAD4;
+  --text:#1A3A55;--muted:#5A88A8;--accent:#2A7AB8;
+}
+html,body{height:100%;overflow:hidden;background:#E8F4FD;font-family:'Mulish',sans-serif;color:var(--text)}
+
+/* SPLASH */
+#splash{position:fixed;inset:0;z-index:999;background:radial-gradient(ellipse at 50% 40%,#B8DCF5 0%,#E8F4FD 70%);display:flex;flex-direction:column;align-items:center;justify-content:center;transition:opacity .5s ease}
+#splash.out{opacity:0;pointer-events:none}
+.sp-ico{font-size:68px;animation:spf 2.5s ease-in-out infinite}
+.sp-h{font-family:'Playfair Display',serif;font-size:26px;color:#1A5F8A;font-weight:900;letter-spacing:5px;margin-top:22px}
+.sp-s{font-size:11px;color:#3A8ABF;letter-spacing:7px;margin-top:7px}
+.sp-bar{width:160px;height:2px;background:var(--green2);border-radius:2px;margin-top:30px;overflow:hidden}
+.sp-prog{height:100%;background:var(--gold);animation:spp 2.1s ease-in-out forwards}
+@keyframes spf{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+@keyframes spp{0%{width:0}100%{width:100%}}
+
+/* APP SHELL */
+#app{position:fixed;inset:0;max-width:480px;margin:0 auto;display:flex;flex-direction:column;background:var(--dark);opacity:0;transition:opacity .35s}
+#app.ready{opacity:1}
+
+/* VIEW SWITCHING - main vs detail, never overlap */
+#view-main{flex:1;overflow:hidden;display:flex;flex-direction:column}
+#view-detail{flex:1;overflow-y:auto;overflow-x:hidden;display:none;-webkit-overflow-scrolling:touch}
+#view-detail::-webkit-scrollbar{width:2px}
+#view-detail::-webkit-scrollbar-thumb{background:var(--green2)}
+
+/* TAB PAGES */
+#tab-pages{flex:1;overflow:hidden;position:relative}
+.tab-page{position:absolute;inset:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;display:none;flex-direction:column;background:var(--dark);padding-bottom:8px}
+.tab-page.active{display:flex}
+.tab-page::-webkit-scrollbar{width:2px}
+.tab-page::-webkit-scrollbar-thumb{background:var(--green2)}
+
+/* NAV */
+nav{flex-shrink:0;background:#C8E4F5;border-top:1px solid var(--green);display:flex;padding-bottom:env(safe-area-inset-bottom,0)}
+.nb{flex:1;background:none;border:none;padding:10px 4px 7px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:3px}
+.nb .ni{font-size:21px;filter:grayscale(1) opacity(.45);transition:filter .18s}
+.nb.on .ni{filter:none}
+.nb .nl{font-size:10px;font-weight:700;letter-spacing:.3px;color:#5A88A8;transition:color .18s}
+.nb.on .nl{color:#1A5F8A}
+
+/* SECTION HEADER */
+.sh{padding:18px 18px 10px;flex-shrink:0}
+.sh-sup{font-size:10px;color:#2A7AB8;letter-spacing:3px;font-weight:700;margin-bottom:4px}
+.sh-h{font-family:'Playfair Display',serif;font-size:clamp(20px,5.5vw,24px);color:#1A5080;font-weight:700;line-height:1.2}
+.sh-s{font-size:13px;color:#5A88A8;margin-top:4px}
+
+/* SEARCH */
+.srch{flex-shrink:0;margin:0 18px 6px;background:var(--dark2);border-radius:12px;padding:10px 14px;display:flex;align-items:center;gap:9px;border:1px solid var(--green)}
+.srch input{background:none;border:none;outline:none;color:var(--text);font-size:14px;flex:1;font-family:'Mulish',sans-serif}
+.srch input::placeholder{color:var(--muted)}
+.sx{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;display:none}
+
+/* CHIPS */
+.chips{flex-shrink:0;display:flex;gap:7px;padding:7px 18px;overflow-x:auto}
+.chips::-webkit-scrollbar{display:none}
+.chip{background:var(--dark2);border:1px solid var(--green);border-radius:20px;padding:5px 13px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;font-family:'Mulish',sans-serif;font-weight:600;transition:all .15s;flex-shrink:0}
+.chip.on{background:#1A6FA8;border-color:#1A6FA8;color:#ffffff;font-weight:700}
+.chips.bdr{border-bottom:1px solid var(--green)}
+
+/* SCROLL AREA */
+.sca{flex:1;overflow-y:auto;overflow-x:hidden;padding:0 18px 16px;display:flex;flex-direction:column}
+.sca::-webkit-scrollbar{width:2px}
+.sca::-webkit-scrollbar-thumb{background:var(--green2)}
+
+/* FEATURED */
+.feat{border-radius:16px;overflow:hidden;cursor:pointer;position:relative;aspect-ratio:16/9;margin-bottom:14px;flex-shrink:0;transition:transform .13s}
+.feat:active{transform:scale(.98)}
+.feat img{width:100%;height:100%;object-fit:cover;display:block}
+.feat-ov{position:absolute;inset:0;background:linear-gradient(0deg,rgba(5,10,4,.93) 0%,rgba(5,10,4,.2) 55%,transparent 100%)}
+.feat-badge{position:absolute;top:12px;left:12px;background:rgba(255,255,255,.5);border:1px solid rgba(26,111,168,.6);color:#1A5F8A;font-size:10px;padding:3px 10px;border-radius:20px;letter-spacing:1px;font-weight:700;backdrop-filter:blur(6px)}
+.feat-body{position:absolute;bottom:0;left:0;right:0;padding:13px}
+.feat-reg{font-size:10px;color:#90C8E8;letter-spacing:2px;margin-bottom:3px;font-weight:700}
+.feat-name{font-family:'Playfair Display',serif;font-size:clamp(16px,4.2vw,20px);color:#fff;font-weight:700;line-height:1.25;margin-bottom:7px}
+.tags{display:flex;gap:5px;flex-wrap:wrap}
+.tag{background:rgba(26,111,168,.12);color:#1A6FA8;font-size:10px;padding:3px 8px;border-radius:9px}
+
+/* LIST COUNT */
+.lcount{flex-shrink:0;font-size:11px;color:#2A7AB8;letter-spacing:2px;font-weight:700;padding:10px 0 8px}
+
+/* HERITAGE CARD */
+.hc{background:var(--dark2);border-radius:12px;cursor:pointer;border:1px solid var(--green);display:flex;overflow:hidden;transition:border-color .15s,transform .12s;flex-shrink:0;margin-bottom:9px}
+.hc:active{transform:scale(.98)}
+.hc-img{width:76px;height:76px;object-fit:cover;flex-shrink:0}
+.hc-ph{width:76px;height:76px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:28px}
+.hc-body{flex:1;padding:11px 10px;min-width:0}
+.hc-name{font-size:14px;color:#1A3A55;font-weight:700;margin-bottom:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hc-meta{font-size:11px;color:#5A88A8;margin-bottom:3px}
+.hc-desc{font-size:12px;color:#5A8AAA;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hc-arr{color:#2490CC;font-size:18px;padding:0 12px;display:flex;align-items:center;flex-shrink:0}
+
+/* EXPLORE */
+.reg-item{background:var(--dark2);border-radius:12px;border:1px solid var(--green);overflow:hidden;flex-shrink:0;margin-bottom:10px}
+.reg-hdr{padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+.reg-name{font-size:15px;color:#1A3A55;font-weight:700}
+.reg-cnt{font-size:12px;color:#5A88A8;margin-top:2px}
+.reg-arr{color:#2490CC;font-size:18px;transition:transform .2s;flex-shrink:0}
+.reg-item.open .reg-arr{transform:rotate(90deg)}
+.reg-cards{display:none;flex-direction:column;padding:0 10px 10px}
+.reg-item.open .reg-cards{display:flex}
+
+/* MAP TAB */
+.mapbox{flex-shrink:0;margin:0 18px 12px;border-radius:14px;overflow:hidden;height:240px;border:1px solid var(--green)}
+.mapbox>div{width:100%;height:100%}
+.map-item{background:var(--dark2);border-radius:11px;padding:11px 13px;cursor:pointer;border:1px solid var(--green);display:flex;align-items:center;gap:10px;flex-shrink:0;margin-bottom:8px;transition:border-color .15s}
+.map-item:hover{border-color:#5AAAD4}
+.map-ico{font-size:20px;flex-shrink:0}
+.map-name{font-size:13px;color:#1A3A55;font-weight:700;margin-bottom:2px}
+.map-coord{font-size:11px;color:#5A88A8}
+
+/* ARXIV */
+.ax-banner{flex-shrink:0;margin:0 18px 12px;background:linear-gradient(135deg,#B0D8F2,#90C4E8);border-radius:12px;padding:14px;border:1px solid var(--gold);display:flex;gap:12px;align-items:center}
+.ax-ico{font-size:28px}
+.ax-t{font-size:14px;color:#1A5F8A;font-weight:700;margin-bottom:2px}
+.ax-s{font-size:12px;color:#5A88A8}
+.stat-grid{flex-shrink:0;display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 18px 12px}
+.stat-box{background:var(--dark2);border-radius:10px;padding:12px 14px;border:1px solid var(--green);text-align:center}
+.stat-n{font-family:'Playfair Display',serif;font-size:22px;color:#1A5F8A;font-weight:700}
+.stat-l{font-size:11px;color:#5A88A8;margin-top:2px}
+
+/* REGION STATS */
+.reg-stat-grid{flex-shrink:0;margin:0 18px 14px;display:flex;flex-direction:column;gap:8px}
+.reg-stat-item{background:var(--dark2);border-radius:10px;padding:12px 14px;border:1px solid var(--green);display:flex;align-items:center;gap:12px}
+.reg-stat-ico{font-size:22px;flex-shrink:0}
+.reg-stat-name{font-size:13px;color:#1A3A55;font-weight:700;margin-bottom:2px}
+.reg-stat-cnt{font-size:11px;color:var(--muted)}
+
+/* DETAIL VIEW */
+.det-hero{position:relative;height:min(56vw,260px);overflow:hidden;flex-shrink:0}
+.det-hero img{width:100%;height:100%;object-fit:cover;display:block}
+.det-hero-ov{position:absolute;inset:0;background:linear-gradient(0deg,rgba(20,60,90,.92) 0%,rgba(20,60,90,.3) 55%,transparent 100%)}
+.det-back{position:absolute;top:13px;left:13px;background:rgba(255,255,255,.75);border:1px solid rgba(26,111,168,.4);border-radius:20px;padding:7px 15px;color:#1A5F8A;cursor:pointer;font-size:13px;font-family:'Mulish',sans-serif;font-weight:700;backdrop-filter:blur(8px);display:flex;align-items:center;gap:5px;z-index:2}
+.det-info{position:absolute;bottom:0;left:0;right:0;padding:14px 16px 12px;z-index:1}
+.det-reg{font-size:10px;color:#90C8E8;letter-spacing:3px;margin-bottom:4px;font-weight:700}
+.det-title{font-family:'Playfair Display',serif;font-size:clamp(17px,4.8vw,22px);color:#fff;font-weight:700;line-height:1.3;margin-bottom:8px}
+
+/* DETAIL TABS */
+.dtabs{position:sticky;top:0;z-index:10;flex-shrink:0;display:flex;background:rgba(220,240,255,.96);border-bottom:1px solid var(--green);backdrop-filter:blur(12px)}
+.dt{flex:1;padding:12px 2px;background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);cursor:pointer;font-size:10px;font-family:'Mulish',sans-serif;font-weight:700;letter-spacing:.3px;transition:all .15s;white-space:nowrap}
+.dt.on{border-bottom-color:#1A6FA8;color:#1A5F8A}
+
+/* DETAIL PANELS */
+.dpanel{display:none;padding:15px 16px 24px;flex-direction:column;gap:10px}
+.dpanel.on{display:flex}
+
+/* INFO CARDS */
+.icard{background:var(--dark2);border-radius:11px;padding:13px;border:1px solid var(--green);flex-shrink:0}
+.ilbl{font-size:10px;color:#4A7A9A;letter-spacing:2px;font-weight:700;margin-bottom:7px}
+.itxt{font-size:14px;color:var(--text);line-height:1.78}
+.irow{display:flex;gap:11px;align-items:flex-start;background:var(--dark2);border-radius:10px;padding:11px 13px;border:1px solid var(--green);flex-shrink:0}
+.irow-ico{font-size:18px;flex-shrink:0;margin-top:1px}
+.irow-lbl{font-size:10px;color:#4A7A9A;letter-spacing:1px;margin-bottom:2px}
+.irow-val{font-size:13px;color:var(--text);line-height:1.5}
+
+/* TIMELINE */
+.tl-item{display:flex;gap:12px;padding-bottom:14px;position:relative;flex-shrink:0}
+.tl-item:not(:last-child)::before{content:"";position:absolute;left:15px;top:26px;bottom:0;width:1px;background:#90C4E8}
+.tl-dot{width:30px;height:30px;border-radius:50%;background:var(--dark2);border:2px solid #1A6FA8;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0}
+.tl-body{flex:1;padding-top:4px}
+.tl-year{font-size:11px;color:#1A6FA8;font-weight:700;margin-bottom:2px;letter-spacing:1px}
+.tl-text{font-size:13px;color:var(--text);line-height:1.6}
+
+/* GALLERY */
+.gal-row{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;flex-shrink:0}
+.gal-row::-webkit-scrollbar{display:none}
+.gal-row img{height:95px;width:auto;min-width:80px;border-radius:9px;object-fit:cover;border:1px solid var(--green);flex-shrink:0}
+
+/* 3D */
+.c3w{position:relative;border-radius:13px;overflow:hidden;height:215px;border:1px solid var(--green);flex-shrink:0;background:linear-gradient(180deg,#B0D0E8,#90B8D0)}
+.c3w canvas{width:100%!important;height:100%!important;display:block}
+.c3b1{position:absolute;top:8px;left:10px;font-size:9px;color:#1A5F8A;background:rgba(255,255,255,.8);padding:3px 8px;border-radius:6px;letter-spacing:1px;font-weight:700}
+.c3b2{position:absolute;bottom:7px;right:9px;font-size:9px;color:var(--muted)}
+
+/* DETAIL MAP */
+.dmapbox{border-radius:12px;overflow:hidden;height:215px;border:1px solid var(--green);flex-shrink:0}
+.dmapbox>div{width:100%;height:100%}
+.cbox{display:flex;gap:11px;align-items:flex-start;background:var(--dark2);border-radius:10px;padding:11px 13px;border:1px solid var(--green);flex-shrink:0}
+.cbox-ico{font-size:18px;flex-shrink:0;margin-top:1px}
+.cbox-lbl{font-size:10px;color:#4A7A9A;letter-spacing:1px;margin-bottom:2px}
+.cbox-val{font-size:13px;color:var(--text)}
+
+/* EMPTY */
+.empty{text-align:center;padding:36px 18px;color:#5A88A8;font-size:14px;flex-shrink:0}
+.empty .eico{font-size:36px;margin-bottom:10px}
+
+/* DIVIDER */
+.divider{height:1px;background:var(--green);margin:4px 0;flex-shrink:0}
+
+/* BADGE */
+.badge{display:inline-block;background:rgba(201,168,76,.18);border:1px solid rgba(201,168,76,.35);color:var(--gold2);font-size:10px;padding:2px 8px;border-radius:8px;margin-right:4px;margin-bottom:4px}
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="sp-ico">🏛️</div>
+  <div class="sp-h">O'ZBEKISTON</div>
+  <div class="sp-s">MADANIY MEROSI</div>
+  <div class="sp-bar"><div class="sp-prog"></div></div>
+</div>
+
+<div id="app">
+  <div id="view-main">
+    <div id="tab-pages">
+
+      <!-- HOME -->
+      <div id="pg-home" class="tab-page active">
+        <div class="sh">
+          <div class="sh-sup">XUSH KELIBSIZ</div>
+          <div class="sh-h">O'zbekiston<br/>Madaniy merosi</div>
+        </div>
+        <div class="srch">
+          <span style="font-size:16px">🔍</span>
+          <input id="si" type="text" placeholder="Yodgorlik, shahar, kalit so'z..."/>
+          <button class="sx" id="sx">✕</button>
+        </div>
+        <div class="chips bdr" id="cat-chips"></div>
+        <div class="chips" id="reg-chips"></div>
+        <div class="sca" id="home-scroll">
+          <div id="feat-wrap"></div>
+          <div class="lcount" id="lcount"></div>
+          <div id="home-list"></div>
+        </div>
+      </div>
+
+      <!-- EXPLORE -->
+      <div id="pg-explore" class="tab-page">
+        <div class="sh">
+          <div class="sh-sup">TARIXIY OBIDALAR</div>
+          <div class="sh-h">Viloyatlar bo'yicha</div>
+          <div class="sh-s">Mintaqani bosing va obidalarni ko'ring</div>
+        </div>
+        <div class="sca" id="exp-list"></div>
+      </div>
+
+      <!-- MAP -->
+      <div id="pg-map" class="tab-page">
+        <div class="sh">
+          <div class="sh-sup">JOYLASHUV</div>
+          <div class="sh-h">Interaktiv xarita</div>
+          <div class="sh-s">OpenStreetMap — barcha yodgorliklar real GPS da</div>
+        </div>
+        <div class="mapbox"><div id="main-map"></div></div>
+        <div class="sca" id="map-list"></div>
+      </div>
+
+      <!-- ARXIV -->
+      <div id="pg-arxiv" class="tab-page">
+        <div class="sh">
+          <div class="sh-sup">ARXIV</div>
+          <div class="sh-h">UNESCO va statistika</div>
+          <div class="sh-s">Jahon madaniy merosi ro'yxati va ma'lumotlar</div>
+        </div>
+        <div class="ax-banner">
+          <div class="ax-ico">🌐</div>
+          <div>
+            <div class="ax-t">UNESCO madaniy meros</div>
+            <div class="ax-s" id="ax-sub">Yuklanmoqda…</div>
+          </div>
+        </div>
+        <div class="stat-grid" id="stat-grid"></div>
+        <div style="padding:0 18px 10px;flex-shrink:0">
+          <div class="ilbl" style="font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:700;margin-bottom:8px;margin-top:4px">VILOYATLAR BO'YICHA TAQSIMOT</div>
+        </div>
+        <div class="reg-stat-grid" id="reg-stat-grid"></div>
+        <div style="padding:0 18px 6px;flex-shrink:0">
+          <div class="ilbl" style="font-size:10px;color:var(--muted);letter-spacing:2px;font-weight:700;margin-bottom:8px">UNESCO RO'YXATIDAGI OBIEKTLAR</div>
+        </div>
+        <div class="sca" id="arxiv-list"></div>
+      </div>
+
+    </div>
+    <nav>
+      <button class="nb on" data-pg="home"><span class="ni">🏠</span><span class="nl">Bosh</span></button>
+      <button class="nb" data-pg="explore"><span class="ni">🏛️</span><span class="nl">Obidalar</span></button>
+      <button class="nb" data-pg="map"><span class="ni">📍</span><span class="nl">Xarita</span></button>
+      <button class="nb" data-pg="arxiv"><span class="ni">📚</span><span class="nl">Arxiv</span></button>
+    </nav>
+  </div>
+
+  <!-- DETAIL VIEW -->
+  <div id="view-detail">
+    <div class="det-hero">
+      <img id="d-img" src="" alt=""/>
+      <div class="det-hero-ov"></div>
+      <button class="det-back" id="back-btn">← Orqaga</button>
+      <div class="det-info">
+        <div class="det-reg" id="d-reg"></div>
+        <div class="det-title" id="d-title"></div>
+        <div class="tags" id="d-tags"></div>
+      </div>
+    </div>
+    <div class="dtabs">
+      <button class="dt on" data-dp="tarix">TARIX</button>
+      <button class="dt" data-dp="galereya">GALEREYA</button>
+      <button class="dt" data-dp="d3">3D</button>
+      <button class="dt" data-dp="xarita">XARITA</button>
+      <button class="dt" data-dp="info">MA'LUMOT</button>
+    </div>
+    <div id="dp-tarix" class="dpanel on">
+      <div class="icard"><div class="ilbl">QISQACHA</div><div class="itxt" id="d-desc"></div></div>
+      <div class="icard"><div class="ilbl">BATAFSIL TARIX</div><div class="itxt" id="d-full"></div></div>
+      <div class="icard" id="d-tl-wrap">
+        <div class="ilbl">TARIXIY VOQEALAR</div>
+        <div id="d-tl"></div>
+      </div>
+    </div>
+    <div id="dp-galereya" class="dpanel">
+      <div class="icard" style="padding-bottom:10px">
+        <div class="ilbl">RASMLAR TO'PLAMI</div>
+        <div class="gal-row" id="d-gal"></div>
+      </div>
+      <div class="icard"><div class="ilbl">VIZUAL TAVSIF</div><div class="itxt" id="d-vis"></div></div>
+      <div class="icard" id="d-arch-wrap">
+        <div class="ilbl">ME'MORIY XUSUSIYATLAR</div>
+        <div class="itxt" id="d-arch"></div>
+      </div>
+    </div>
+    <div id="dp-d3" class="dpanel">
+      <div class="c3w"><canvas id="c3d"></canvas><div class="c3b1">● 3D MAKETI</div><div class="c3b2">AYLANTIRILMOQDA</div></div>
+      <div class="icard"><div class="ilbl">3D MAKETI HAQIDA</div><div class="itxt" id="d-3dnote"></div></div>
+      <div class="icard" id="d-3ddetail-wrap"><div class="ilbl">MODEL TAFSILOTLARI</div><div id="d-3ddetail"></div></div>
+    </div>
+    <div id="dp-xarita" class="dpanel">
+      <div class="dmapbox"><div id="d-map"></div></div>
+      <div class="cbox"><div class="cbox-ico">📍</div><div><div class="cbox-lbl">GPS KOORDINATALARI</div><div class="cbox-val" id="d-coords"></div></div></div>
+      <div class="cbox"><div class="cbox-ico">🌍</div><div><div class="cbox-lbl">MANZIL</div><div class="cbox-val" id="d-loc"></div></div></div>
+      <div class="cbox"><div class="cbox-ico">🧭</div><div><div class="cbox-lbl">QANDAY BORISH</div><div class="cbox-val" id="d-how"></div></div></div>
+      <div class="icard"><div class="ilbl">ATROFDAGI JOYLASHUV</div><div class="itxt" id="d-around"></div></div>
+    </div>
+    <div id="dp-info" class="dpanel"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const DATA = [
+  {
+    id:1,title:"Registon Ansambli",cat:"memoriy",region:"Samarqand",period:"XIV–XVII asr",
+    type:"moddiy",model3d:"mosque",color:"#C8860A",bg:"linear-gradient(135deg,#2C1810,#5C3317)",
+    tags:["UNESCO","Madrasa","Samarqand","XIV–XVII asr"],
+    coords:{lat:39.6542,lng:66.9759},
+    img:"images/registon_1.jpg",
+    gallery:["images/registon_1.jpg","images/registon_2.jpg","images/registon_3.jpg"],
+    desc:"Registon — O'rta Osiyodagi eng buyuk me'moriy ansambillardan biri. Uch madrasadan iborat: Ulug'bek (1417), Sher-Dor (1619) va Tillakori (1646). Samarqandning markaziy maydoni.",
+    full:"Registon (arabcha: qumli joy) majmuasi Samarqand shahrining qalbi hisoblanadi. Ulug'bek madrasasida astronomiya, matematika, falsafa va ilohiyot o'rgatilgan — bu Temuriylar davrining eng yirik oliy o'quv yurti edi. Sher-Dor peshtoqidagi yolbars naqshi islom an'anaviy san'atida noyobdir, chunki odatda tirik jonzot tasviri qo'llanilmaydi. Tillakori masjidining ichki gumbazi 2 kg dan ortiq zarhal bilan qoplangan. UNESCO 1996-yilda butun ansambilni Jahon merosi ro'yxatiga kiritdi. Bugungi kunda har yili 500 000 dan ortiq sayyoh tashrif buyuradi.",
+    visual:"Uch tomondan madrasalar o'ragan katta ochiq maydon. Ko'k va oltin rang mozaikalar, muqarnas peshtoqlar, baland minoralar Sharq me'morligining cho'qqisini namoyon etadi. Kechqurun maxsus yoritish ostida ansambil ayniqsa go'zal ko'rinadi.",
+    arch:"Ulug'bek madrasasi (1417–1420): portal balandligi 35 m, 2 qavatli, 50 xonali. Sher-Dor (1619–1636): old peshtoqda yolbars va quyosh naqshlari, ikki minorasi 28 m. Tillakori (1646–1660): masjid va madrasa birga, gumbaz diametri 17 m, ichida zarhal naqqoshlik.",
+    timeline:[{y:"1370",ico:"👑",t:"Amir Temur Samarqandni poytaxt qildi va qurilishlar boshlandi"},{y:"1417",ico:"🏗️",t:"Ulug'bek madrasasi qurildi — astronomiya va matematika maktabi"},{y:"1619",ico:"🦁",t:"Sher-Dor madrasasi qurildi — yolbars naqshli peshtoq bilan"},{y:"1646",ico:"✨",t:"Tillakori madrasasi va masjidi qurildi — zarhal gumbaz bilan"},{y:"1996",ico:"🌐",t:"UNESCO Jahon merosi ro'yxatiga kiritildi"}],
+    facts:[{ico:"📐",l:"MAYDONI",v:"1.5 gektar, 100x200 m maydon"},{ico:"🏛️",l:"INSHOOTLAR",v:"3 ta madrasa + masjid"},{ico:"👷",l:"QURILISH MATERIALI",v:"Pishiq g'isht, ganch, majolika, zarhal"},{ico:"🎓",l:"ULUG'BEK MADRASASI",v:"50 xona, 100 talaba, ilmiy markaz"},{ico:"👁️",l:"SAYYOHLAR",v:"Yiliga 500 000+ kishi"},{ico:"✈️",l:"QANDAY BORISH",v:"Samarqand markazida, piyoda yoki taksi"}],
+    how:"Samarqand shahri markazida joylashgan. Toshkentdan poezd 2–3 soat (Afrosiyob tez poyezdi). Shahar ichida taksi yoki piyoda. Koordinata: 39.6542°N, 66.9759°E.",
+    around:"Atrofida: Bibi Xonim masjidi (500 m), Shohizinda maqbara kompleksi (2 km), Ulug'bek rasadxonasi (3 km), Afrosiyob muzeyi (2.5 km). Samarqand eski shahrining qalbi."
+  },
+  {
+    id:2,title:"Sitorai Mohi Xosa",cat:"memoriy",region:"Buxoro",period:"XIX–XX asr",
+    type:"moddiy",model3d:"palace",color:"#1A6B8A",bg:"linear-gradient(135deg,#0D1B2A,#1A3A5C)",
+    tags:["Saroy","Amir","Buxoro","XIX–XX asr"],
+    coords:{lat:39.7747,lng:64.4286},
+    img:"images/sitorai_1.jpg",
+    gallery:["images/sitorai_1.jpg","images/sitorai_2.jpg"],
+    desc:"Buxoro amirlarining yozgi saroyi. 'Oy va yulduzlar saroyi' degan ma'noni anglatadi. 1911–1918 yillar orasida qurilgan. An'anaviy o'zbek va rus me'morligining uyg'unlashgan namunasi.",
+    full:"Sitorai Mohi Xosa saroyi Buxoro amiri Said Olimxon (1910–1920) tomonidan qurdirilgan. Buxoro shahri markazidan 4 km shimoli-sharqda joylashgan. Saroy ikkita asosiy qismdan iborat: an'anaviy o'zbek me'morligidagi eski qism va evropa uslubidagi yangi qism. Ko'zguli katta zal, naqqoshlik bilan bezatilgan shiftlar, ganch o'ymakorlik naqshlari saroy bezagining eng yorqin namunalaridir. 1920-yil Sovet inqilobidan keyin saroy davlat mulkiga o'tdi. 1927-yildan muzey sifatida ochiq. Hozir Buxoro viloyati tarixi-me'morlik muzeysi mavjud.",
+    visual:"Saroyning fasadi klassik Rossiya imperiya uslubida, lekin dekorativ elementlar to'liq o'zbek an'analariga asoslangan. Oq marmar pol, ganch naqshinkor panel, ko'zgulu zal va nozik naqqoshlik ishlari ayniqsa diqqatga sazovor.",
+    arch:"Yangi bino (1911–1918): Rossiya imperiya uslubi, markaziy gumbaz, 2 qavatli asosiy bino, 12 xona. Eski qism: to'rtburchak hovli, an'anaviy ayvonli uslub. Bog': nodir daraxt va gullar, favvora. Umumiy maydon: 4 gektar.",
+    timeline:[{y:"1882",ico:"🌿",t:"Amir Abdulahad birinchi yozgi saroy qurdirdi"},{y:"1910",ico:"👑",t:"Said Olimxon amir bo'ldi va yangi saroy qurishni buyurdi"},{y:"1911–1918",ico:"🏰",t:"Yangi saroy qurildi. Rus va mahalliy ustalar birgalikda ishladi"},{y:"1920",ico:"📜",t:"Bolsheviklar Buxoro amirligini tugatdi, saroy davlat mulki bo'ldi"},{y:"1927",ico:"🏛️",t:"Muzeyga aylantirildi va ommaga ochildi"}],
+    facts:[{ico:"📅",l:"QURILISH YILI",v:"1911–1918"},{ico:"👑",l:"BUYURTMACHI",v:"Amir Said Olimxon"},{ico:"🏗️",l:"USLUB",v:"O'zbek-rus me'morlik sintezi"},{ico:"🌳",l:"MAYDON",v:"4 gektar, bog' bilan"},{ico:"🏛️",l:"HOZIRGI HOLAT",v:"Tarix-me'morlik muzeysi"},{ico:"🎨",l:"BEZAK",v:"Ganch o'ymalar, ko'zgular, naqqoshlik"}],
+    how:"Buxoro shahri markazidan 4 km shimoli-sharqda. Buxoro aeroportidan 8 km. Taksi yoki marshrut avtobus №4. Koordinata: 39.7747°N, 64.4286°E.",
+    around:"Atrofida: Buxoro qadimiy shahri (4 km), Kalon masjidi va minorasi (5 km), Lyabi-Hovuz ansambli (4.5 km), Ark qal'asi (5 km). Buxoro shahrining shimoliy yoqasida."
+  },
+  {
+    id:3,title:"Alpomish dostoni",cat:"nomoddiy",region:"Butun O'zbekiston",period:"Qadim zamonlar",
+    type:"nomoddiy",model3d:"scroll",color:"#6B4C9A",bg:"linear-gradient(135deg,#1A0D2E,#3D1F6B)",
+    tags:["UNESCO","Doston","Og'zaki meros","Folklor"],
+    coords:{lat:41.2995,lng:69.2401},
+    img:"images/alpomish_1.jpg",
+    gallery:["images/alpomish_1.jpg"],
+    desc:"O'zbek xalqining qahramonlik eposi — 40 000+ misra. Baxshilar dutor va qo'biz jo'rligida kuylaydigan ulkan doston. 2010-yilda UNESCO nomoddiy madaniy meros ro'yxatiga kiritilgan.",
+    full:"Alpomish O'g'iz turkiy urug'iga mansub Alpomish qahramonning sarguzashtlarini tasvirlaydi: Barchinoy bilan muhabbati, Qalmoq yurtiga borishi, 7 yillik tutqunligi va vataniga qaytishi. Dostonning eng uzun versiyasi 40 000 misradan iborat bo'lib, bir baxshi uni to'liq ijro etish uchun bir necha kecha sarflaydi. Baxshilar cholg'u asboblari — dutor yoki qo'biz jo'rligida ijro etadilar. Doston nafaqat she'riy asar, balki qadimiy o'zbek hayoti, urf-odatlari va qadriyatlarini aks ettiruvchi tarixiy manbadir. Turli versiyalari O'zbekiston, Qozog'iston, Tojikiston va Afg'onistonda mavjud.",
+    visual:"Baxshilar dostonni kuylaganida maxsus kiyim kiyib, dutor yoki qo'biz chaladi. Ziyofatlarda, to'ylarda va milliy bayrramlarda tun bo'yi ijro etiladi. Tinglovchilar yarim tunda soatlab eshitib, qahramonning taqdirini birga kechiradi.",
+    arch:"Doston tarkibi: prolog (muqaddima), asosiy syujet (7 qism), epilog. Til: qadimiy o'zbek she'riy tili, ko'p bo'g'inli vazn. Musiqiy shakl: monoton melodiya, improvizatsiya elementlari. Ijro vaqti: 3–5 kecha (to'liq versiya).",
+    timeline:[{y:"IX–X asr",ico:"📖",t:"Dostonning ilk og'zaki versiyalari shakllandi"},{y:"XIX asr",ico:"✍️",t:"Yevropalik tadqiqotchilar dostonni yozib oldi"},{y:"1928",ico:"📚",t:"Hoji Muxammad Saidov 40 000 misralik versiyani to'liq yozib oldi"},{y:"1999",ico:"📕",t:"Akademik to'liq nashr: 6 tomlik ilmiy-tanqidiy matn"},{y:"2010",ico:"🌐",t:"UNESCO nomoddiy madaniy meros ro'yxatiga kiritildi"}],
+    facts:[{ico:"📏",l:"HAJMI",v:"40 000+ misra (versiyaga qarab)"},{ico:"🎵",l:"IJRO USULI",v:"Baxshi + dutor yoki qo'biz"},{ico:"🌍",l:"TARQALISHI",v:"O'zbekiston, Qozog'iston, Tojikiston, Afg'oniston"},{ico:"🌐",l:"UNESCO HOLATI",v:"2010-yildan Nomoddiy Madaniy Meros"},{ico:"👥",l:"QAHRAMONLAR",v:"Alpomish, Barchinoy, Ultantoze, Qorajun"},{ico:"⏱️",l:"TO'LIQ IJRO VAQTI",v:"3–5 kecha"}],
+    how:"Doston butun O'zbekiston bo'ylab ijro etiladi. Toshkentda: O'zbek Milliy Akademik Drama Teatri va Alisher Navoiy nomli Davlat Opera va Balet Teatrida maxsus namoyishlar bo'ladi.",
+    around:"Baxshichilik maktablari: Surxondaryo, Qashqadaryo, Farg'ona va Xorazm viloyatlarida faol. Toshkent davlat konservatoriyasida o'rgatiladi."
+  },
+  {
+    id:4,title:"Ichan Qal'a",cat:"memoriy",region:"Xiva",period:"IV asr – XIX asr",
+    type:"moddiy",model3d:"fortress",color:"#8B6914",bg:"linear-gradient(135deg,#1C1204,#3D2A08)",
+    tags:["UNESCO","Shahar","Qo'rg'on","Xiva"],
+    coords:{lat:41.3775,lng:60.3597},
+    img:"images/ichan_qala_1.jpg",
+    gallery:["images/ichan_qala_1.jpg","images/ichan_qala_2.jpg","images/ichan_qala_3.jpg"],
+    desc:"Xivaning ichki shahri — qadimiy shahar qo'rg'oni. 2.2 km devor, 60+ tarixiy inshoot. 'Ochiq osmon ostidagi muzey' deb ataladi. UNESCO ro'yxatida 1990-yildan.",
+    full:"Ichan Qal'a — Xiva shahrining qadimiy o'zagini tashkil etuvchi ichki qo'rg'on. Uning devorlari 6–8 metr balandligida va umumiy uzunligi 2.2 km. Bu yerda 60 dan ortiq tarixiy inshootlar mavjud: Ko'hna Ark qal'asi (XVII–XIX asr) — xonlarning saroyi; Juma masjidi (XI asr) — 208 ta noyob yog'och ustun bilan; Ko'k minor (XIX asr) — tugallanmagan ulkan minora; Islam Xo'ja minorasi (1910) — 57 metr balandlik, Xorazmning eng baland minorasi; Pahlavan Mahmud maqbarasi — XIV asr, ko'k-moviy gumbaz. 1990-yilda butun shahar UNESCO ro'yxatiga kiritildi.",
+    visual:"Ko'chalar o'rta asrlar muhitini bugungi kunda ham saqlab qolgan. Tosh yo'llar, eski karvonsaroylar (tim va toqilar), hammomlar, gumbazli bozorlar faol ishlatilmoqda. Ko'k sopol naqshlar va moviy gumbazlar shaharga o'ziga xos go'zallik beradi.",
+    arch:"Ko'hna Ark: 6 ha maydon, 20 m devor, taxt zali, harem, zindon. Juma masjidi: 55x46 m, 213 ta ustun (208 ta qadimiy). Ko'k minor (Kalta Minor): diametri 14.2 m, tugallanmagan (rejada 70 m bo'lishi kerak edi). Islam Xo'ja: 57 m, 10 qavatli yonbosh zinali spiral.",
+    timeline:[{y:"IV asr",ico:"🏰",t:"Birinchi qo'rg'on qurildi. Xorazmshohlar davri"},{y:"VII–VIII asr",ico:"☪️",t:"Arab fathi — islom dini tarqaldi"},{y:"XIV asr",ico:"👑",t:"Xiva xonligi mustaqil davlat bo'ldi"},{y:"XVII asr",ico:"🏗️",t:"Ko'hna Ark va Ko'k minor qurildi"},{y:"1873",ico:"🤝",t:"Rossiya imperiyasi Xiva xonligini himoyaga oldi"},{y:"1990",ico:"🌐",t:"UNESCO Jahon merosi ro'yxatiga kiritildi"}],
+    facts:[{ico:"📐",l:"DEVOR UZUNLIGI",v:"2.2 km, 4 ta darvoza"},{ico:"📏",l:"DEVOR BALANDLIGI",v:"6–8 metr, qalinligi 5–6 m"},{ico:"🏛️",l:"INSHOOTLAR",v:"60+ tarixiy obiekt"},{ico:"🕌",l:"JUMA MASJIDI",v:"208 qadimiy ustun, XI asr"},{ico:"🗼",l:"ISLAM XO'JA MINORASI",v:"57 metr — Xorazmning balandligi"},{ico:"✈️",l:"QANDAY BORISH",v:"Urganch aeroportidan 35 km"}],
+    how:"Urganch shahriga uchish (Toshkentdan 1 soat). Urganch aeroportidan Xivaga taksi 35 km (30 daqiqa). Koordinata: 41.3775°N, 60.3597°E. Ichki shahar: sharqiy Palvon darvoza yoki g'arbiy Ota darvoza.",
+    around:"Xiva tashqarisida: Dishan Qal'a (tashqi shahar devori), Palvon darvoza bozori. Yaqinroqda: Xorazm davlat tarixi-me'morlik muzey qo'riqxonasi, an'anaviy hunarmandchilik ustaxonalari."
+  },
+  {
+    id:5,title:"O'zbek Atlas To'qimachilik",cat:"hunarmandchilik",region:"Farg'ona vodiysi",period:"Qadimdan",
+    type:"nomoddiy",model3d:"textile",color:"#C24A2B",bg:"linear-gradient(135deg,#2A0A04,#5C1A0C)",
+    tags:["UNESCO","Hunarmandchilik","Atlas","Marg'ilon"],
+    coords:{lat:40.4715,lng:71.7218},
+    img:"images/atlas_1.jpg",
+    gallery:["images/atlas_1.jpg","images/atlas_2.jpg"],
+    desc:"Atlas va adras matolarni qo'lda to'qish san'ati. Ikat texnikasi, tabiiy bo'yoqlar. Marg'ilon — dunyo bo'ylab mashhur ipak markazi. 2017-yilda UNESCO ro'yxatiga kiritildi.",
+    full:"O'zbek atlas va adras matolarini to'qish an'anasi 2000 yildan ziyod tarixga ega. Farg'ona vodiysida, ayniqsa Marg'ilon shahrida bu hunarmandchilik alohida rivojlangan. Ikat texnikasida ip bo'yamasdan avval maxsus rezist (ipak ip) bilan bog'lanadi, so'ng bo'yaladi — natijada noyob qiyshiq-chiziqli naqsh hosil bo'ladi. Tabiiy bo'yoqlar ishlatiladi: indigo o'tidan ko'k, anor po'stidan sariq, nar danagidan qizil rang olinadi. Har bir mato qo'lda to'qilganligi sababli dunyoda ikkinchi bir o'xshashi bo'lmaydi. 2017-yilda UNESCO ro'yxatiga kiritildi.",
+    visual:"Atlas mato yorqin ranglar va diagonal chiziqli naqshlari bilan ajralib turadi. Marg'ilon bozorlarida yuzlab rang va naqsh variantlari sotiladi. Qo'lda to'qilgan har bir parcha o'ziga xos — chinakam san'at asari.",
+    arch:"Asosiy mato turlari: Atlas (to'liq ipak, silliq), Adras (ipak+paxta, yarim ipak), Baxmal (to'liq ipak, baxmal). Ikat usulining bosqichlari: ip tayyorlash, bog'lash (6–12 kun), bo'yash (3–7 qatlam), to'qish (1–3 hafta). Marg'ilondagi Yodgorlik ipak kombinati — dunyodagi eng yirik qo'lda to'quv fabrikalari.",
+    timeline:[{y:"II–I asr BC",ico:"🛣️",t:"Buyuk Ipak Yo'li — Farg'ona vodiysidan ipak g'arb va sharqga eksport qilindi"},{y:"XV–XVI asr",ico:"🎨",t:"Ikat texnikasi to'liq shakllandi. Naqsh va rang tanlash an'analari qaror topdi"},{y:"1972",ico:"🏭",t:"Marg'ilon 'Yodgorlik' ipak kombinati tashkil etildi"},{y:"2004",ico:"📜",t:"UNESCO madaniy meros fondidan ko'mak — hunarmandchilik maktabi ochildi"},{y:"2017",ico:"🌐",t:"UNESCO nomoddiy madaniy meros ro'yxatiga kiritildi"}],
+    facts:[{ico:"🧵",l:"MATO TURLARI",v:"Atlas, Adras, Baxmal, Shoyi"},{ico:"🎨",l:"BO'YOQ MANBAI",v:"Indigo, anor, nar, safflor, zarg'aldoq"},{ico:"⏱️",l:"BITTA MATO VAQTI",v:"1–3 hafta qo'l ishi"},{ico:"📍",l:"ASOSIY MARKAZ",v:"Marg'ilon, Namangan, Andijon"},{ico:"🌐",l:"UNESCO HOLATI",v:"2017-yildan ro'yxatda"},{ico:"💰",l:"EKSPORT",v:"Yaponiya, Yevropa, AQSh bozorlariga"}],
+    how:"Marg'ilon shahriga: Farg'onadan avtomobil 15 km. Toshkentdan poyezd Farg'onaga (3.5 soat). Marg'ilon bozori va 'Yodgorlik' ipak kombinatiga ekskursiyalar mavjud.",
+    around:"Atrofida: Kumtepa tepalik-qal'asi (antik davr, 3 km), Farg'ona shahrining bozori (15 km), Andijon tarixiy markazi (40 km), Qo'qon xonligi saroyi (50 km)."
+  },
+  {
+    id:6,title:"Shohizinda Ansambli",cat:"memoriy",region:"Samarqand",period:"XI–XV asr",
+    type:"moddiy",model3d:"mausoleum",color:"#1E7A5C",bg:"linear-gradient(135deg,#041A12,#0D3D28)",
+    tags:["Maqbara","Mozaika","Samarqand","Temuriylar"],
+    coords:{lat:39.6619,lng:66.9861},
+    img:"images/shohizinda_1.jpg",
+    gallery:["images/shohizinda_1.jpg","images/shohizinda_2.jpg"],
+    desc:"'Tirik shoh' maqbaralar yo'lagi. 11 ta maqbara, ko'k-moviy mozaika bezaklari, 360 m yo'lak. Temuriylar davrining eng go'zal me'moriy namunasi.",
+    full:"Shohizinda (forscha: 'Tirik shoh') — Samarqandda Afrosiyob tepasida joylashgan maqbaralar majmuasi. Rivoyatga ko'ra, bu yerda Hazrat Muhammad amakivachchasi Qusam ibn Abbos dafn etilgan va u hali ham 'tirik' deb ishoniladi. Majmuadagi 11 ta asosiy maqbara XIV–XV asrlarda qurilgan. Ko'k-moviy koshinkori, naqqoshlik va girih naqshlari o'sha davrning me'morchilik san'atining cho'qqisini namoyon etadi. Amir Temur singlisi Shirin Beka Oqa va jiyanining maqbaralari shu yerda. 1996-yilda Samarqand shahrining bir qismi sifatida UNESCO ro'yxatiga kiritildi.",
+    visual:"Shohizindaga kirish 40 pog'onali ko'tarilish yo'li orqali amalga oshadi — pog'onalarni sanab o'tish tariqasi ibodat sifatida qabul qilinadi. Ko'k osmonga o'xshash moviy gumbazlar, nozik oq girih naqshlari va oltin sariq kashshoflar ajoyib manzara yaratadi.",
+    arch:"Yo'lak 360 m bo'lib, uchta guruhga bo'linadi: quyi (XI–XII asr), o'rta (XIV asr birinchi yarmi) va yuqori (XIV asr ikkinchi yarmi). Har bir maqbara noyob bezakka ega: Shirin Beka Oqa maqbarasi — ko'k firoze koshinkori; Qusam ibn Abbos maqbarasi — XII–XIV asr naqshlari; Tuman Oqa ansambli — uch binoli majmua.",
+    timeline:[{y:"XI asr",ico:"🕌",t:"Qusam ibn Abbos maqbarasi bunyod etildi"},{y:"XIV asr",ico:"👑",t:"Temuriy amirlar va malikalari uchun maqbaralar qurishni boshlandi"},{y:"1372–1405",ico:"⚔️",t:"Amir Temur davrida eng ko'p qurilish ishlari olib borildi"},{y:"XV asr",ico:"🎨",t:"Ulug'bek davri — so'nggi maqbaralar va ta'mirlash ishlari"},{y:"1996",ico:"🌐",t:"Samarqand shahrining bir qismi sifatida UNESCO ro'yxatiga kiritildi"}],
+    facts:[{ico:"🏛️",l:"MAQBARALAR SONI",v:"11 ta asosiy + bir nechta kichik"},{ico:"📏",l:"YO'LAK UZUNLIGI",v:"~360 metr"},{ico:"🎨",l:"BEZAK TURI",v:"Koshinkori, naqqoshlik, girih naqshlari"},{ico:"🕌",l:"ASOSIY MAQBARA",v:"Qusam ibn Abbos, XI asr"},{ico:"👑",l:"DAFN ETILGANLAR",v:"Temuriy malika va amirlar"},{ico:"✈️",l:"QANDAY BORISH",v:"Samarqand markazidan 2 km shimoli-sharq"}],
+    how:"Samarqand shahri markazidan 2 km shimoli-sharq tomonda. Taksi yoki piyoda. Registon maydonidan yurish ~25 daqiqa. Koordinata: 39.6619°N, 66.9861°E.",
+    around:"Atrofida: Afrosiyob muzeyi va qadimiy shahar xarobalari (200 m), Bibi Xonim masjidi (1.5 km), Registon ansambli (2 km), Ulug'bek rasadxonasi (1 km)."
+  },
+  {
+    id:7,title:"Buxoro Qadimiy Shahri",cat:"memoriy",region:"Buxoro",period:"I–XIX asr",
+    type:"moddiy",model3d:"fortress",color:"#8A5A1A",bg:"linear-gradient(135deg,#1A1004,#3A2208)",
+    tags:["UNESCO","Shahar","Buxoro","Islom merosi"],
+    coords:{lat:39.7680,lng:64.4230},
+    img:"images/buxoro_1.jpg",
+    gallery:["images/buxoro_1.jpg","images/buxoro_2.jpg"],
+    desc:"Markaziy Osiyoning eng yaxshi saqlanib qolgan qadimiy shahri. 2500 yillik tarix, 140+ me'moriy yodgorlik. Ibn Sino va Al-Buxoriy vatani. UNESCO ro'yxatida 1993-yildan.",
+    full:"Buxoro — IX–X asrlarda Somoniylar sulolasi davrida Sharqning yirik ilm-fan va madaniyat markaziga aylangan. Ibn Sino (Avitsenna), Al-Buxoriy (hadis olimi), Rudakiy (forscha she'r otasi) bu shahardan. Arki Buxoro (IV–XVII asr) — xonlar qal'asi; Kalon minorasi (1127, 47 m) — asrlar davomida muazzin bong urgan; Mir Arab madrasasi (XVI asr) — bugungi kunda ham faol diniy o'quv yurti; Ismoil Somoniy maqbarasi (IX–X asr) — O'rta Osiyodagi eng qadimiy saqlanib qolgan islom me'moriy yodgorligi. 1993-yilda UNESCO ro'yxatiga kiritildi.",
+    visual:"Buxoro ko'chalari o'rta asrlar muhitini saqlagan. Tosh ko'chalar, eski karvonsaroylar (Toqi Zargaron, Toqi Sarrofon), hammomlar, gumbazli bozorlar bugungi kunda ham faol ishlatilmoqda. Kechqurun Ko'k Uy havuzi atrofidagi manzara — Lyabi-Hovuz — ayniqsa ajoyib.",
+    arch:"Ark qal'asi: 6 ga maydon, 20 m baland devorlar, taxt zali, masjid, zindon. Kalon minorasi: 47 m, diametri pastda 9 m, yuqorida 6 m, 10 qatorli gul naqsh bilan o'ralgan. Ismoil Somoniy maqbarasi: 10x10 m, to'rtta arkali eshik, pishiq g'ishtdan o'rib qurilgan, kunda har ikki soatda yorug'lik o'zgaradi.",
+    timeline:[{y:"III–II asr BC",ico:"🏛️",t:"Buxoro hududida birinchi shahar paydo bo'ldi"},{y:"709",ico:"☪️",t:"Arab fathi — islom dini tarqaldi"},{y:"IX–X asr",ico:"👑",t:"Somoniylar sulolasi — Buxoro Sharqning ilmiy poytaxti"},{y:"1220",ico:"⚔️",t:"Mo'g'ullar istilosi — shahar vayron qilindi, aholisi qirildi"},{y:"XVI–XVII asr",ico:"🕌",t:"Shayboniylar — Buxoro xonligi yuksalish davri, ko'p qurilishlar"},{y:"1993",ico:"🌐",t:"UNESCO Jahon merosi ro'yxatiga kiritildi"}],
+    facts:[{ico:"📅",l:"YOSHI",v:"2500+ yil"},{ico:"🏛️",l:"YODGORLIKLAR",v:"140+ me'moriy obiekt"},{ico:"🕌",l:"KALON MINORASI",v:"47 metr, 1127-yil qurilgan"},{ico:"📚",l:"MASHHUR AHOLISI",v:"Ibn Sino, Al-Buxoriy, Rudakiy"},{ico:"🎓",l:"ILMIY MAKTAB",v:"IX asrda 113 ta madrasa bor edi"},{ico:"✈️",l:"QANDAY BORISH",v:"Buxoro aeroporti, Toshkentdan 1 soat"}],
+    how:"Buxoro aeroporti (Toshkentdan 1 soat, poyezddan 5–6 soat). Aeroportdan shaharga taksi 5 km. Qadimiy shahar markazi piyoda sayr uchun qulay. Koordinata: 39.7680°N, 64.4230°E.",
+    around:"Shahar ichida: Kalon minorasi va masjidi (200 m), Mir Arab madrasasi (300 m), Lyabi-Hovuz havuzi (400 m), Ismoil Somoniy maqbarasi (800 m). Tashqarida: Sitorai Mohi Xosa saroyi (4 km)."
+  },
+  {
+    id:8,title:"Navruz bayrami",cat:"nomoddiy",region:"Butun O'zbekiston",period:"3000+ yil",
+    type:"nomoddiy",model3d:"scroll",color:"#2A8A4C",bg:"linear-gradient(135deg,#061408,#0E2E14)",
+    tags:["UNESCO","Bayram","An'ana","Milliy meros"],
+    coords:{lat:41.2995,lng:69.2401},
+    img:"images/navruz_1.jpg",
+    gallery:["images/navruz_1.jpg"],
+    desc:"Yangi yil bayrami — har yili 21 martda bahor kelishini nishonlaydi. 3000 yillik tarix, 30+ mamlakatda nishonlanadi. 2009-yildan UNESCO ro'yxatida.",
+    full:"Navruz (forscha: 'yangi kun') — quyosh Hamal burjiga kirgan kundagi astronomik bahor teng kechasi. O'zbekistonda 21 mart rasmiy bayram. An'anaviy ovqatlar: sumalak (bug'doy unidan 12+ soat qaynatiladigan maxsus taom, kechayu kunduz g'alayonli aralashtiriladi), ko'rak oshi, halim, samsa. Bayramda ko'cha o'yinlari: kurash (milliy ko'rashish), ko'pkari (ot ustida o'yin), qo'shiqlar va an'anaviy raqslar bo'ladi. 2009-yilda UNESCO nomoddiy madaniy meros ro'yxatiga kiritildi. 11-ta millat ushbu nomzodga birgalikda qo'shildi.",
+    visual:"Navruz kuni ko'chalar saffrang gul va ko'k-yashil ranglar bilan bezatiladi. Mahallalarda sumalak qozonlari tun bo'yi qaynaydi, ayollar kuylaydi. Bolalar yangi kiyimda, kattalar keng dasturxon atrofida. Shaharlarda katta kontsert va yarmarkalar.",
+    arch:"Navruz an'analari: Sumalak — faqat ayollar tayyorlaydi, qozon tun bo'yi qaynaydi, ichiga tosh solinadi (kimda tosh chiqsa — omad!). Xonadon tozalash — katta fasl tozaligi. Yangi kiyim kiyish. Qabristonga ziyorat. Urug'-aymoq ziyofati.",
+    timeline:[{y:"3000 yil oldin",ico:"☀️",t:"Zardushtiylik dinida yangi yil sifatida rasmiylashtirilgan"},{y:"IX–X asr",ico:"📖",t:"Somoniylar davlatida rasmiy bayram — Buxoroda katta nishon"},{y:"1925",ico:"⛔",t:"Sovet hokimiyati Navruznni diniy deb taqiqladi"},{y:"1989",ico:"🎉",t:"O'zbekistonda Navruz qayta tiklanib, rasmiy bayramga aylandi"},{y:"2009",ico:"🌐",t:"UNESCO nomoddiy madaniy meros ro'yxatiga 11 mamlakatdan birgalikda kiritildi"}],
+    facts:[{ico:"📅",l:"SANA",v:"Har yili 21 mart (bahor teng kechasi)"},{ico:"🍲",l:"AN'ANAVIY OVQAT",v:"Sumalak, ko'rak oshi, halim, samsa, ko'k choy"},{ico:"🌍",l:"TARQALISHI",v:"30+ mamlakat, 300+ millionli aholi"},{ico:"🎭",l:"AN'ANALAR",v:"Kurash, ko'pkari, qo'shiq, raqs, yarmark"},{ico:"🌐",l:"UNESCO HOLATI",v:"2009-yildan Nomoddiy Madaniy Meros"},{ico:"📜",l:"TARIX",v:"3000+ yillik uzluksiz an'ana"}],
+    how:"Navruz butun O'zbekistonda nishonlanadi. Katta tadbirlar: Toshkentda Milliy bog' (Navruz saroyi), Samarqandda Registon maydoni, Buxoroda Ark qal'asi oldida. 21 mart — rasmiy dam olish kuni.",
+    around:"Navruz kuni butun mamlakat bayramlaydi. Eng katta tantanalar Toshkent, Samarqand va Buxoroda o'tkaziladi. Milliy kiyimlar kiyiladi, an'anaviy taomlar tayyorlanadi."
+  }
+];
+
+const CATS=[{id:"barchasi",l:"Barchasi"},{id:"memoriy",l:"Me'morlik"},{id:"nomoddiy",l:"Nomoddiy"},{id:"hunarmandchilik",l:"Hunarmandchilik"}];
+const REGS=["Barchasi","Samarqand","Buxoro","Xiva","Farg'ona vodiysi","Butun O'zbekiston"];
+let aCat="barchasi",aReg="Barchasi",srchQ="",mainMap=null,dMap=null,dMapId=null,t3RAF=null,t3Rnd=null,curItem=null;
+
+setTimeout(()=>{
+  document.getElementById("splash").classList.add("out");
+  document.getElementById("app").classList.add("ready");
+  setTimeout(()=>document.getElementById("splash").style.display="none",600);
+  init();
+},2300);
+
+function init(){
+  buildCatChips();buildRegChips();renderHome();buildExplore();buildMapList();buildArxiv();
+  bindNav();bindSearch();bindDetailTabs();
+  document.getElementById("back-btn").addEventListener("click",closeDetail);
+}
+
+function showDetail(){document.getElementById("view-main").style.display="none";document.getElementById("view-detail").style.display="block";document.getElementById("view-detail").scrollTop=0;}
+function closeDetail(){stopThree();if(dMap){dMap.remove();dMap=null;dMapId=null;}document.getElementById("view-detail").style.display="none";document.getElementById("view-main").style.display="flex";}
+
+function bindNav(){
+  document.querySelectorAll(".nb").forEach(btn=>{
+    btn.addEventListener("click",()=>{
+      const pg=btn.dataset.pg;
+      document.querySelectorAll(".nb").forEach(b=>b.classList.remove("on"));btn.classList.add("on");
+      document.querySelectorAll(".tab-page").forEach(p=>p.classList.remove("active"));
+      document.getElementById("pg-"+pg).classList.add("active");
+      if(pg==="map")setTimeout(initMainMap,200);
+    });
+  });
+}
+
+function buildCatChips(){
+  const el=document.getElementById("cat-chips");
+  el.innerHTML=CATS.map(c=>`<button class="chip${aCat===c.id?" on":""}" data-c="${c.id}">${c.l}</button>`).join("");
+  el.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{aCat=b.dataset.c;buildCatChips();renderHome();}));
+}
+function buildRegChips(){
+  const el=document.getElementById("reg-chips");
+  el.innerHTML=REGS.map(r=>`<button class="chip${aReg===r?" on":""}" data-r="${r}">${r}</button>`).join("");
+  el.querySelectorAll(".chip").forEach(b=>b.addEventListener("click",()=>{aReg=b.dataset.r;buildRegChips();renderHome();}));
+}
+
+function filtered(){
+  return DATA.filter(d=>{
+    const mC=aCat==="barchasi"||d.cat===aCat;
+    const mR=aReg==="Barchasi"||d.region===aReg;
+    const q=srchQ.toLowerCase();
+    const mQ=!q||d.title.toLowerCase().includes(q)||d.region.toLowerCase().includes(q)||d.tags.some(t=>t.toLowerCase().includes(q));
+    return mC&&mR&&mQ;
+  });
+}
+
+function renderHome(){
+  const fl=filtered();
+  document.getElementById("lcount").textContent=fl.length+" TA YODGORLIK";
+  const fw=document.getElementById("feat-wrap");
+  if(aCat==="barchasi"&&aReg==="Barchasi"&&!srchQ){
+    const f=DATA[0];
+    fw.innerHTML=`<div class="feat" data-id="${f.id}"><img src="${f.img}" alt="${f.title}" onerror="this.style.display='none'"/><div class="feat-ov"></div><div class="feat-badge">✦ TAVSIYA ETILGAN</div><div class="feat-body"><div class="feat-reg">${f.region.toUpperCase()} · ${f.period}</div><div class="feat-name">${f.title}</div><div class="tags">${f.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div></div></div>`;
+    fw.querySelector(".feat").addEventListener("click",()=>openDetail(f.id));
+  } else {fw.innerHTML="";}
+  const list=document.getElementById("home-list");
+  if(!fl.length){list.innerHTML=`<div class="empty"><div class="eico">🔎</div>Natija topilmadi</div>`;return;}
+  list.innerHTML=fl.map(hcHTML).join("");
+  list.querySelectorAll(".hc").forEach(el=>el.addEventListener("click",()=>openDetail(+el.dataset.id)));
+}
+
+function hcHTML(d){
+  const ico=d.cat==="memoriy"?"🏛️":d.cat==="nomoddiy"?"📜":"🧵";
+  return `<div class="hc" data-id="${d.id}"><img class="hc-img" src="${d.img}" alt="${d.title}" onerror="this.outerHTML='<div class=hc-ph style=background:${encodeURIComponent(d.bg)}>${ico}</div>'"/><div class="hc-body"><div class="hc-name">${d.title}</div><div class="hc-meta">${d.region} · ${d.period}</div><div class="hc-desc">${d.desc.slice(0,70)}...</div></div><div class="hc-arr">›</div></div>`;
+}
+
+function bindSearch(){
+  const inp=document.getElementById("si"),clr=document.getElementById("sx");
+  inp.addEventListener("input",()=>{srchQ=inp.value.trim();clr.style.display=srchQ?"inline":"none";renderHome();});
+  clr.addEventListener("click",()=>{inp.value="";srchQ="";clr.style.display="none";renderHome();});
+}
+
+function buildExplore(){
+  const grp={};
+  DATA.forEach(d=>{const r=d.region==="Butun O'zbekiston"?"Milliy (butun O'zbekiston)":d.region;(grp[r]=grp[r]||[]).push(d);});
+  const el=document.getElementById("exp-list");
+  el.innerHTML=Object.entries(grp).map(([r,items])=>`<div class="reg-item"><div class="reg-hdr" onclick="this.closest('.reg-item').classList.toggle('open')"><div><div class="reg-name">📍 ${r}</div><div class="reg-cnt">${items.length} ta yodgorlik</div></div><div class="reg-arr">›</div></div><div class="reg-cards">${items.map(hcHTML).join("")}</div></div>`).join("");
+  el.querySelectorAll(".hc").forEach(el=>el.addEventListener("click",()=>openDetail(+el.dataset.id)));
+}
+
+function buildMapList(){
+  const el=document.getElementById("map-list");
+  el.innerHTML=DATA.map(d=>`<div class="map-item" data-id="${d.id}"><div class="map-ico">${d.cat==="memoriy"?"🏛️":d.cat==="nomoddiy"?"📜":"🧵"}</div><div style="flex:1;min-width:0"><div class="map-name">${d.title}</div><div class="map-coord">📍 ${d.region} · ${d.coords.lat.toFixed(4)}°N, ${d.coords.lng.toFixed(4)}°E</div></div><div style="color:var(--gold);font-size:18px;flex-shrink:0">›</div></div>`).join("");
+  el.querySelectorAll(".map-item").forEach(el=>el.addEventListener("click",()=>openDetail(+el.dataset.id)));
+}
+
+function initMainMap(){
+  if(mainMap)return;
+  mainMap=L.map("main-map",{zoomControl:true,scrollWheelZoom:false}).setView([40.5,64.5],5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap",maxZoom:19}).addTo(mainMap);
+  DATA.forEach(d=>L.marker([d.coords.lat,d.coords.lng],{icon:mkIco()}).addTo(mainMap).bindPopup(`<b style="color:#333;font-size:12px">${d.title}</b>`));
+}
+function mkIco(){return L.divIcon({className:"",html:`<div style="width:12px;height:12px;border-radius:50%;background:#C9A84C;border:2px solid #fff;box-shadow:0 0 7px rgba(201,168,76,.85)"></div>`,iconSize:[12,12],iconAnchor:[6,6]});}
+
+function buildArxiv(){
+  const un=DATA.filter(d=>d.tags.includes("UNESCO"));
+  const moddiy=DATA.filter(d=>d.type==="moddiy").length;
+  const nomod=DATA.filter(d=>d.type==="nomoddiy").length;
+  document.getElementById("ax-sub").textContent=`O'zbekistondagi ${un.length} ta UNESCO obiekt`;
+  document.getElementById("stat-grid").innerHTML=`<div class="stat-box"><div class="stat-n">${DATA.length}</div><div class="stat-l">Jami yodgorlik</div></div><div class="stat-box"><div class="stat-n">${un.length}</div><div class="stat-l">UNESCO ro'yxatida</div></div><div class="stat-box"><div class="stat-n">${moddiy}</div><div class="stat-l">Moddiy meros</div></div><div class="stat-box"><div class="stat-n">${nomod}</div><div class="stat-l">Nomoddiy meros</div></div>`;
+  // Region stats
+  const rGrp={};
+  DATA.forEach(d=>{const r=d.region==="Butun O'zbekiston"?"Milliy":d.region;(rGrp[r]=rGrp[r]||[]).push(d);});
+  const rIcos={"Samarqand":"🏙️","Buxoro":"🕌","Xiva":"🏯","Farg'ona vodiysi":"🧵","Milliy":"🌍"};
+  document.getElementById("reg-stat-grid").innerHTML=Object.entries(rGrp).map(([r,items])=>`<div class="reg-stat-item"><div class="reg-stat-ico">${rIcos[r]||"📍"}</div><div><div class="reg-stat-name">${r}</div><div class="reg-stat-cnt">${items.length} ta yodgorlik · ${items.filter(d=>d.tags.includes("UNESCO")).length} ta UNESCO</div></div></div>`).join("");
+  const el=document.getElementById("arxiv-list");
+  el.innerHTML=un.map(hcHTML).join("");
+  el.querySelectorAll(".hc").forEach(el=>el.addEventListener("click",()=>openDetail(+el.dataset.id)));
+}
+
+function openDetail(id){
+  const d=DATA.find(x=>x.id===id);if(!d)return;curItem=d;
+  const img=document.getElementById("d-img");
+  img.style.display="block";img.src=d.img;
+  img.onerror=()=>{img.style.display="none";img.parentElement.style.background=d.bg;};
+  document.getElementById("d-reg").textContent=d.region.toUpperCase()+" · "+d.period;
+  document.getElementById("d-title").textContent=d.title;
+  document.getElementById("d-tags").innerHTML=d.tags.map(t=>`<span class="tag">${t}</span>`).join("");
+  // TARIX
+  document.getElementById("d-desc").textContent=d.desc;
+  document.getElementById("d-full").textContent=d.full;
+  const tlW=document.getElementById("d-tl-wrap");
+  if(d.timeline&&d.timeline.length){
+    tlW.style.display="block";
+    document.getElementById("d-tl").innerHTML=d.timeline.map(t=>`<div class="tl-item"><div class="tl-dot">${t.ico}</div><div class="tl-body"><div class="tl-year">${t.y}</div><div class="tl-text">${t.t}</div></div></div>`).join("");
+  } else {tlW.style.display="none";}
+  // GALEREYA
+  document.getElementById("d-gal").innerHTML=(d.gallery||[d.img]).map(s=>`<img src="${s}" onerror="this.style.display='none'" alt="${d.title}"/>`).join("");
+  document.getElementById("d-vis").textContent=d.visual||d.desc;
+  const archW=document.getElementById("d-arch-wrap");
+  if(d.arch){archW.style.display="block";document.getElementById("d-arch").textContent=d.arch;}else{archW.style.display="none";}
+  // 3D
+  document.getElementById("d-3dnote").textContent=`Bu "${d.title}" obiektining Three.js yordamida yaratilgan interaktiv 3D modeli. Model turi: ${d.model3d.toUpperCase()}. Real me'moriy xususiyatlarni aks ettiradi va avtomatik aylanadi.`;
+  const det3dW=document.getElementById("d-3ddetail-wrap");
+  if(d.arch){det3dW.style.display="block";document.getElementById("d-3ddetail").innerHTML=`<div class="itxt" style="font-size:13px;color:var(--text);line-height:1.65">${d.arch}</div>`;}else{det3dW.style.display="none";}
+  // XARITA
+  document.getElementById("d-coords").textContent=`${d.coords.lat}° N,  ${d.coords.lng}° E`;
+  document.getElementById("d-loc").textContent=`${d.region}, O'zbekiston`;
+  document.getElementById("d-how").textContent=d.how||"Ma'lumot mavjud emas";
+  const aroundEl=document.getElementById("d-around");
+  if(d.around){aroundEl.parentElement.style.display="block";aroundEl.textContent=d.around;}else{aroundEl.parentElement.style.display="none";}
+  // INFO
+  const ip=document.getElementById("dp-info");
+  const base=[{ico:"🏷️",l:"NOMI",v:d.title},{ico:"📍",l:"VILOYAT",v:d.region},{ico:"📅",l:"DAVR",v:d.period},{ico:"📂",l:"TUR",v:d.type==="moddiy"?"Moddiy meros":"Nomoddiy meros"},{ico:"🗂️",l:"KATEGORIYA",v:d.cat==="memoriy"?"Me'moriy":d.cat==="nomoddiy"?"Nomoddiy":"Hunarmandchilik"},{ico:"🏅",l:"TEGLAR",v:d.tags.join(" · ")},{ico:"🌐",l:"KOORDINATA",v:`${d.coords.lat}°N, ${d.coords.lng}°E`}];
+  const all=[...base,...(d.facts||[]).map(f=>({ico:f.ico,l:f.l,v:f.v}))];
+  ip.innerHTML=all.map(r=>`<div class="irow"><div class="irow-ico">${r.ico}</div><div><div class="irow-lbl">${r.l}</div><div class="irow-val">${r.v}</div></div></div>`).join("");
+  switchDTab("tarix");showDetail();
+}
+
+function bindDetailTabs(){document.querySelectorAll(".dt").forEach(btn=>{btn.addEventListener("click",()=>switchDTab(btn.dataset.dp));});}
+function switchDTab(name){
+  document.querySelectorAll(".dt").forEach(b=>b.classList.toggle("on",b.dataset.dp===name));
+  document.querySelectorAll(".dpanel").forEach(p=>p.classList.toggle("on",p.id==="dp-"+name));
+  if(name==="d3"&&curItem)initThree(curItem);else stopThree();
+  if(name==="xarita"&&curItem)initDMap(curItem);
+}
+
+function stopThree(){if(t3RAF){cancelAnimationFrame(t3RAF);t3RAF=null;}if(t3Rnd){t3Rnd.dispose();t3Rnd=null;}}
+function initThree(d){
+  stopThree();
+  const cv=document.getElementById("c3d");
+  const W=cv.parentElement.clientWidth||340,H=215;
+  const rnd=new THREE.WebGLRenderer({canvas:cv,antialias:true,alpha:true});
+  rnd.setSize(W,H);rnd.setPixelRatio(Math.min(devicePixelRatio,2));rnd.setClearColor(0,0);t3Rnd=rnd;
+  const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(44,W/H,.1,100);
+  cam.position.set(0,2.5,6);cam.lookAt(0,.5,0);
+  sc.add(new THREE.AmbientLight(0xffffff,.7));
+  const dl=new THREE.DirectionalLight(0xffd080,1.4);dl.position.set(5,8,5);sc.add(dl);
+  sc.add(new THREE.GridHelper(7,16,0x90B8D0,0xA8CCE0));
+  const hex=parseInt(d.color.replace("#",""),16);
+  const mM=new THREE.MeshPhongMaterial({color:hex,shininess:90});
+  const wM=new THREE.MeshPhongMaterial({color:0xC8A96E,shininess:30});
+  const gM=new THREE.MeshPhongMaterial({color:0xD4AF37,shininess:140});
+  const bM=new THREE.MeshPhongMaterial({color:0x2A7FBF,shininess:110});
+  const dkM=new THREE.MeshPhongMaterial({color:0x100808});
+  const gnM=new THREE.MeshPhongMaterial({color:0xB8A880,shininess:8});
+  const B=(w,h,dp,m,x,y,z)=>{const ms=new THREE.Mesh(new THREE.BoxGeometry(w,h,dp),m);ms.position.set(x,y,z);return ms;};
+  const C=(rt,rb,h,s,m,x,y,z)=>{const ms=new THREE.Mesh(new THREE.CylinderGeometry(rt,rb,h,s),m);ms.position.set(x,y,z);return ms;};
+  const D=(r,m,x,y,z)=>{const ms=new THREE.Mesh(new THREE.SphereGeometry(r,28,18,0,Math.PI*2,0,Math.PI/2),m);ms.position.set(x,y,z);return ms;};
+  const grp=new THREE.Group();const mt=d.model3d;
+  if(mt==="mosque"||mt==="mausoleum"){
+    grp.add(B(3.5,.12,3.5,gnM,0,-.06,0));grp.add(B(2.5,1.5,2.5,wM,0,.75,0));grp.add(C(.77,.77,.22,24,gM,0,1.61,0));grp.add(D(.76,mt==="mausoleum"?bM:mM,0,1.72,0));grp.add(C(.025,.075,.52,10,gM,0,2.49,0));
+    [[-1.06,-1.06],[1.06,-1.06],[-1.06,1.06],[1.06,1.06]].forEach(([x,z])=>{grp.add(C(.13,.155,2.05,14,wM,x,1.02,z));grp.add(C(.01,.14,.4,14,mM,x,2.22,z));});
+    grp.add(B(.55,1,.06,dkM,0,.5,1.28));[-.7,0,.7].forEach(x=>grp.add(B(.22,.3,.04,dkM,x,.9,1.28)));
+  }else if(mt==="palace"){
+    grp.add(B(4.5,.12,3,gnM,0,-.06,0));grp.add(B(3.2,1.3,1.8,wM,0,.65,0));grp.add(B(3.35,.15,1.9,mM,0,1.37,0));
+    [[-1.85,0],[1.85,0]].forEach(([x])=>{grp.add(B(.9,1.1,1.4,wM,x,.55,0));grp.add(B(1,.13,1.5,mM,x,1.16,0));});
+    grp.add(D(.42,bM,0,1.52,0));[-.95,0,.95].forEach(x=>grp.add(B(.26,.38,.04,bM,x,.75,.91)));
+  }else if(mt==="fortress"){
+    grp.add(B(3.9,.1,3.9,gnM,0,-.05,0));
+    [[0,0,-1.55,3.2,1.3,.2],[0,0,1.55,3.2,1.3,.2],[-1.55,0,0,.2,1.3,3.2],[1.55,0,0,.2,1.3,3.2]].forEach(([x,y,z,w,h,dp])=>grp.add(B(w,h,dp,wM,x,h/2,z)));
+    [[-1.55,-1.55],[1.55,-1.55],[-1.55,1.55],[1.55,1.55]].forEach(([x,z])=>{grp.add(C(.3,.32,1.9,12,mM,x,.95,z));grp.add(C(.01,.3,.44,12,gM,x,1.98,z));});
+    grp.add(B(1.1,1.65,1.1,new THREE.MeshPhongMaterial({color:0x9A7840}),0,.82,0));grp.add(D(.37,mM,0,1.64,0));grp.add(B(.5,.78,.22,dkM,0,.39,1.55));
+  }else if(mt==="scroll"){
+    const sM=new THREE.MeshPhongMaterial({color:0xD4A856,shininess:70}),cM=new THREE.MeshPhongMaterial({color:0x8B4A14,shininess:90});
+    const sc2=new THREE.Mesh(new THREE.CylinderGeometry(.22,.22,2.5,24),sM);sc2.rotation.z=Math.PI/2;sc2.position.set(0,.65,0);grp.add(sc2);
+    [-1.28,1.28].forEach(x=>{const c=new THREE.Mesh(new THREE.CylinderGeometry(.32,.32,.14,22),cM);c.rotation.z=Math.PI/2;c.position.set(x,.65,0);grp.add(c);});
+    for(let i=0;i<5;i++){const p=B(2.15,.02,.9,new THREE.MeshPhongMaterial({color:0xF0E8C0}),0,-.16-i*.04,.42-i*.22);p.rotation.x=-.28+i*.12;grp.add(p);}
+    for(let i=0;i<7;i++)grp.add(B(1.75,.012,.01,new THREE.MeshPhongMaterial({color:0x4A2A08}),0,-.14-i*.032,.41));
+  }else if(mt==="textile"){
+    const fM=new THREE.MeshPhongMaterial({color:0x5A3010});
+    grp.add(B(.1,2.9,.1,fM,-1.18,0,0));grp.add(B(.1,2.9,.1,fM,1.18,0,0));grp.add(B(2.5,.1,.1,fM,0,1.4,0));grp.add(B(2.5,.1,.1,fM,0,-1.4,0));
+    [0xE63946,0xF4A261,0x2A9D8F,0xE9C46A,0x264653,0xA8DADC,0xC77DFF,0x80B918].forEach((c,i)=>grp.add(B(.25,2.65,.04,new THREE.MeshPhongMaterial({color:c}),-.98+i*.28,0,0)));
+    for(let i=0;i<11;i++)grp.add(B(2.25,.03,.04,new THREE.MeshPhongMaterial({color:0xF0E0C0}),0,-1.25+i*.26,.03));
+  }
+  grp.position.y=-.5;sc.add(grp);
+  let t=0;const loop=()=>{t3RAF=requestAnimationFrame(loop);t+=.007;grp.rotation.y=t;grp.position.y=-.5+Math.sin(t*.65)*.07;rnd.render(sc,cam);};loop();
+}
+
+function initDMap(d){
+  if(dMapId===d.id)return;if(dMap){dMap.remove();dMap=null;}dMapId=d.id;
+  setTimeout(()=>{
+    dMap=L.map("d-map",{zoomControl:true,scrollWheelZoom:false}).setView([d.coords.lat,d.coords.lng],14);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{attribution:"© OpenStreetMap",maxZoom:19}).addTo(dMap);
+    L.marker([d.coords.lat,d.coords.lng],{icon:mkIco()}).addTo(dMap).bindPopup(`<b style="color:#333;font-size:12px">${d.title}</b>`).openPopup();
+  },160);
+}
+</script>
+</body>
+</html>
